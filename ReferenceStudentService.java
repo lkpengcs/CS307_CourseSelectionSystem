@@ -71,7 +71,7 @@ public class ReferenceStudentService implements StudentService {
                     + "coursesectionclass.classend, coursesectionclass.location "
                     + "from "
                     + "course join coursesection on coursesection.courseid = course.id "
-                    + "join coursesectionclass on coursesectionclass.coursesectionid = coursesection.id "
+                    + "left outer join coursesectionclass on coursesectionclass.coursesectionid = coursesection.id "
                     + "join instructor on instructor.id = coursesectionclass.instructor ";
             switch (searchCourseType)
             {
@@ -236,7 +236,8 @@ public class ReferenceStudentService implements StudentService {
             }
             rst = pst.executeQuery();
             List<CourseSearchEntry> result = new ArrayList<CourseSearchEntry>();
-            List<Integer> havesection = new ArrayList<Integer>();
+            Map<Integer, List<String>> havesection = new HashMap<>();
+            Map<Integer, Integer> conflictids = new HashMap<>();
             while(rst.next())
             {
                 String courseid = rst.getString(1);
@@ -248,10 +249,6 @@ public class ReferenceStudentService implements StudentService {
                 String sectionname = rst.getString(7);
                 int totalcapacity = rst.getInt(8);
                 int leftcapacity = rst.getInt(9);
-                if (havesection.contains(sectionid))
-                {
-                    continue;
-                }
                 if (ignoreMissingPrerequisites)
                 {
                     if (!passedPrerequisitesForCourse(studentId, courseid))
@@ -272,35 +269,40 @@ public class ReferenceStudentService implements StudentService {
                         continue;
                     }
                 }
-                Course course = new Course();
-                course.id = courseid;
-                course.name = coursename;
-                course.credit = credit;
-                course.classHour = classhour;
-                course.grading = (grading.equals("HundredMarkScore")? Course.CourseGrading.HUNDRED_MARK_SCORE:Course.CourseGrading.PASS_OR_FAIL);
                 List<String> conflictCourseNames = new ArrayList<String>();
-                int dayofweek = rst.getInt(10);
-                Array array = rst.getArray(11);
+                Object o;
+                o = rst.getObject(10);
+                int dayofweek = -1;
+                Array array;
                 List<Short> weeklist = new ArrayList<Short>();
-                if (array != null)
+                short classbegin = -1;
+                short classend = -1;
+                String location = null;
+                if (o != null)
                 {
-                    ResultSet arr = array.getResultSet();
-                    while (arr.next())
+                    dayofweek = rst.getInt(10);
+                    array = rst.getArray(11);
+                    if (array != null)
                     {
-                        weeklist.add(arr.getShort(2));
+                        ResultSet arr = array.getResultSet();
+                        while (arr.next())
+                        {
+                            weeklist.add(arr.getShort(2));
+                        }
                     }
+                    classbegin = rst.getShort(12);
+                    classend = rst.getShort(13);
+                    location = rst.getString(14);
                 }
-                short classbegin = rst.getShort(12);
-                short classend = rst.getShort(13);
-                String location = rst.getString(14);
                 String subsql = "select coursesectionclass.dayofweek, coursesectionclass.weeklist, "
                         + "coursesectionclass.classbegin, coursesectionclass.classend, coursesectionclass.location, "
-                        + "course.name, coursesection.sectionname, course.id "
+                        + "course.name, coursesection.sectionname, course.id, "
+                        + "studentgrades.sectionid "
                         + "from studentgrades join coursesection on studentgrades.sectionid = coursesection.id "
                         + "join course on studentgrades.courseid = course.id "
-                        + "join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
-                        + "where studentgrades.studentid = ? and studentgrades.semesterid = ? and "
-                        + "studentgrades.grade is null and studentgrades.pf is null";
+                        + "left outer join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
+                        + "where studentgrades.studentid = ? and studentgrades.semesterid = ?";
+                        //+ "and studentgrades.grade is null and studentgrades.pf is null";
                 PreparedStatement subpst = (PreparedStatement) connection.prepareStatement(subsql);
                 subpst.setInt(1, studentId);
                 subpst.setInt(2, semesterId);
@@ -319,24 +321,33 @@ public class ReferenceStudentService implements StudentService {
                             }
                         }
                         else
+                        {
                             isconflict = true;
+                        }
                     }
                     else
                     {
-                        int tmpdayofweek = subrst.getInt(1);
-                        Array tmparray = subrst.getArray(2);
+                        Object subo = subrst.getObject(1);
+                        int tmpdayofweek = -2;
                         List<Short> tmpweeklist = new ArrayList<Short>();
-                        if (tmparray != null)
+                        short tmpclassbegin = -1, tmpclassend = -1;
+                        String tmplocation = null;
+                        if (subo != null)
                         {
-                            ResultSet arr = tmparray.getResultSet();
-                            while (arr.next())
+                            tmpdayofweek = subrst.getInt(1);
+                            Array tmparray = subrst.getArray(2);
+                            if (tmparray != null)
                             {
-                                tmpweeklist.add(arr.getShort(2));
+                                ResultSet arr = tmparray.getResultSet();
+                                while (arr.next())
+                                {
+                                    tmpweeklist.add(arr.getShort(2));
+                                }
                             }
+                            tmpclassbegin = subrst.getShort(3);
+                            tmpclassend = subrst.getShort(4);
+                            tmplocation = subrst.getString(5);
                         }
-                        short tmpclassbegin = subrst.getShort(3);
-                        short tmpclassend = subrst.getShort(4);
-                        String tmplocation = subrst.getString(5);
                         for (short i : weeklist)
                         {
                             for (short j : tmpweeklist)
@@ -360,7 +371,15 @@ public class ReferenceStudentService implements StudentService {
                                     }
                                 }
                             }
+                            if (ignoreConflict && isconflict)
+                            {
+                                break;
+                            }
                         }
+                    }
+                    if (ignoreConflict && isconflict)
+                    {
+                        break;
                     }
                 }
                 if (!ignoreConflict)
@@ -380,21 +399,36 @@ public class ReferenceStudentService implements StudentService {
                 }
                 if (isconflict && ignoreConflict)
                 {
-                    continue;
+                    conflictids.put(sectionid, 1);
+                    havesection.remove(sectionid);
                 }
-                CourseSection coursesection = new CourseSection();
-                coursesection.id = sectionid;
-                coursesection.name = sectionname;
-                coursesection.totalCapacity = totalcapacity;
-                coursesection.leftCapacity = leftcapacity;
-                subsql = "select coursesectionclass.id, coursesectionclass.dayofweek, coursesectionclass.weeklist, "
+                else
+                {
+                    if (havesection.containsKey(sectionid))
+                    {
+                        havesection.get(sectionid).addAll(conflictCourseNames);
+                    }
+                    else
+                    {
+                        if (!conflictids.containsKey(sectionid))
+                        {
+                            havesection.put(sectionid, conflictCourseNames);
+                        }
+                    }
+                }
+            }
+            Set<Map.Entry<Integer, List<String>>> entrySet = havesection.entrySet();
+            for (Map.Entry<Integer, List<String>> entry : entrySet)
+            {
+                int sectionid = entry.getKey();
+                String subsql = "select coursesectionclass.id, coursesectionclass.dayofweek, coursesectionclass.weeklist, "
                         + "coursesectionclass.classbegin, coursesectionclass.classend, coursesectionclass.location, "
                         + "instructor.firstname, instructor.lastname, instructor.id "
                         + "from coursesectionclass join instructor on coursesectionclass.instructor = instructor.id "
                         + "where coursesectionclass.coursesectionid = ?";
-                subpst = (PreparedStatement) connection.prepareStatement(subsql);
+                PreparedStatement subpst = (PreparedStatement) connection.prepareStatement(subsql);
                 subpst.setInt(1, sectionid);
-                subrst = subpst.executeQuery();
+                ResultSet subrst = subpst.executeQuery();
                 Set<CourseSectionClass> sectionClasses = new HashSet<CourseSectionClass>();
                 while (subrst.next())
                 {
@@ -423,11 +457,11 @@ public class ReferenceStudentService implements StudentService {
                         case 7:
                             dayweek = DayOfWeek.SUNDAY;
                             break;
-                            default:
-                                dayweek = null;
+                        default:
+                            dayweek = null;
                     }
-                    array = subrst.getArray(3);
-                    weeklist = new ArrayList<Short>();
+                    Array array = subrst.getArray(3);
+                    List<Short> weeklist = new ArrayList<Short>();
                     if (array != null)
                     {
                         ResultSet arr = array.getResultSet();
@@ -436,9 +470,9 @@ public class ReferenceStudentService implements StudentService {
                             weeklist.add(arr.getShort(2));
                         }
                     }
-                    classbegin = subrst.getShort(4);
-                    classend = subrst.getShort(5);
-                    location = subrst.getString(6);
+                    short classbegin = subrst.getShort(4);
+                    short classend = subrst.getShort(5);
+                    String location = subrst.getString(6);
                     String firstname = subrst.getString(7);
                     String lastname = subrst.getString(8);
                     String fullname;
@@ -460,13 +494,33 @@ public class ReferenceStudentService implements StudentService {
                     coursesectionclass.location = location;
                     sectionClasses.add(coursesectionclass);
                 }
-                havesection.add(sectionid);
-                CourseSearchEntry courseSearchEntry = new CourseSearchEntry();
-                courseSearchEntry.course = course;
-                courseSearchEntry.section = coursesection;
-                courseSearchEntry.sectionClasses = sectionClasses;
-                courseSearchEntry.conflictCourseNames = conflictCourseNames;
-                result.add(courseSearchEntry);
+                subsql = "select course.id, course.name, course.credit, course.classhour, course.grading, "
+                        + "coursesection.id, coursesection.sectionname, coursesection.totalcapacity, coursesection.leftcapacity "
+                        + "from course join coursesection on course.id = coursesection.courseid "
+                        + "where coursesection.id = ?";
+                subpst = (PreparedStatement) connection.prepareStatement(subsql);
+                subpst.setInt(1, sectionid);
+                subrst = subpst.executeQuery();
+                if (subrst.next())
+                {
+                    CourseSearchEntry courseSearchEntry = new CourseSearchEntry();
+                    Course course = new Course();
+                    course.id = subrst.getString(1);
+                    course.name = subrst.getString(2);
+                    course.credit = subrst.getInt(3);
+                    course.classHour = subrst.getInt(4);
+                    course.grading = (subrst.getString(5).equals("HundredMarkScore")? Course.CourseGrading.HUNDRED_MARK_SCORE:Course.CourseGrading.PASS_OR_FAIL);
+                    CourseSection coursesection = new CourseSection();
+                    coursesection.id = sectionid;
+                    coursesection.name = subrst.getString(7);
+                    coursesection.totalCapacity = subrst.getInt(8);
+                    coursesection.leftCapacity = subrst.getInt(9);
+                    courseSearchEntry.course = course;
+                    courseSearchEntry.section = coursesection;
+                    courseSearchEntry.sectionClasses = sectionClasses;
+                    courseSearchEntry.conflictCourseNames = entry.getValue();
+                    result.add(courseSearchEntry);
+                }
             }
             result.sort(new Comparator<CourseSearchEntry>() {
 
@@ -542,7 +596,7 @@ public class ReferenceStudentService implements StudentService {
                 Object pf = rst.getObject(2);
                 int tmpsemester = rst.getInt(3);
                 int tmpsectionid = rst.getInt(4);
-                if (pf == null && tmpsemester == semesterid && tmpsectionid == sectionId)
+                if (tmpsemester == semesterid && tmpsectionid == sectionId)
                 {
                     connection.commit();
                     connection.close();
@@ -553,6 +607,21 @@ public class ReferenceStudentService implements StudentService {
                     connection.commit();
                     connection.close();
                     return EnrollResult.ALREADY_PASSED;
+                }
+                else if (tmpsemester == semesterid)
+                {
+                    if (!passedPrerequisitesForCourse(studentId, courseid))
+                    {
+                        connection.commit();
+                        connection.close();
+                        return EnrollResult.PREREQUISITES_NOT_FULFILLED;
+                    }
+                    else
+                    {
+                        connection.commit();
+                        connection.close();
+                        return EnrollResult.COURSE_CONFLICT_FOUND;
+                    }
                 }
 //                else
 //                {
@@ -566,35 +635,105 @@ public class ReferenceStudentService implements StudentService {
                     + "coursesectionclass.classbegin, coursesectionclass.classend, "
                     + "coursesectionclass.location "
                     + "from coursesection "
-                    + "join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
+                    + "left outer join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
                     + "where coursesection.id = ?";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, sectionId);
             rst = pst.executeQuery();
-            int leftcapacity = 0, dayofweek;
-            short classbegin, classend;
-            Short[] weeks;
-            List<Short> weeklist = new ArrayList<Short>();
+            int leftcapacity = 0, dayofweek = -1;
+            short classbegin = -1, classend = -1;
             String location;
-            if (rst.next())
+            boolean hasclass = false;
+            while (rst.next())
             {
+                List<Short> weeklist = new ArrayList<Short>();
+                hasclass = true;
                 courseid = rst.getString(1);
-                leftcapacity = rst.getInt(2);
-                dayofweek = rst.getInt(3);
-                Array array = rst.getArray(4);
-                if (array != null)
+                if (!passedPrerequisitesForCourse(studentId, courseid))
                 {
-                    ResultSet arr = array.getResultSet();
-                    while (arr.next())
+                    connection.commit();
+                    connection.close();
+                    return EnrollResult.PREREQUISITES_NOT_FULFILLED;
+                }
+                leftcapacity = rst.getInt(2);
+                Object o = rst.getObject(3);
+                if (o != null)
+                {
+                    dayofweek = rst.getInt(3);
+                    Array array = rst.getArray(4);
+                    if (array != null)
                     {
-                        weeklist.add(arr.getShort(2));
+                        ResultSet arr = array.getResultSet();
+                        while (arr.next())
+                        {
+                            weeklist.add(arr.getShort(2));
+                        }
+                    }
+                    classbegin = rst.getShort(5);
+                    classend = rst.getShort(6);
+                    location = rst.getString(7);
+                }
+                String subsql = "select coursesection.courseid, coursesection.leftcapacity, "
+                        + "coursesectionclass.dayofweek, coursesectionclass.weeklist, "
+                        + "coursesectionclass.classbegin, coursesectionclass.classend, "
+                        + "coursesectionclass.location "
+                        + "from coursesection "
+                        + "left outer join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
+                        + "join studentgrades on studentgrades.sectionid = coursesection.id "
+                        + "where studentgrades.studentid = ? "
+                        + "and studentgrades.semesterid = ?";
+                PreparedStatement subpst = (PreparedStatement) connection.prepareStatement(subsql);
+                subpst.setInt(1, studentId);
+                subpst.setInt(2, semesterid);
+                ResultSet subrst = subpst.executeQuery();
+                while(subrst.next())
+                {
+                    String tmpcourseid = subrst.getString(1);
+                    int tmpleftcapacity = subrst.getInt(2);
+                    Object subo = subrst.getObject(3);
+                    int tmpdayofweek = -2;
+                    List<Short> tmpweeklist = new ArrayList<Short>();
+                    short tmpclassbegin = -2, tmpclassend = -2;
+                    String tmplocation = null;
+                    if (subo != null)
+                    {
+                        tmpdayofweek = subrst.getInt(3);
+                        Array tmparray = subrst.getArray(4);
+                        if (tmparray != null)
+                        {
+                            ResultSet arr = tmparray.getResultSet();
+                            while (arr.next())
+                            {
+                                tmpweeklist.add(arr.getShort(2));
+                            }
+                        }
+                        tmpclassbegin = subrst.getShort(5);
+                        tmpclassend = subrst.getShort(6);
+                        tmplocation = subrst.getString(7);
+                    }
+                    if (tmpcourseid.equalsIgnoreCase(courseid))
+                    {
+                        connection.commit();
+                        connection.close();
+                        return EnrollResult.COURSE_CONFLICT_FOUND;
+                    }
+                    for (short i : weeklist)
+                    {
+                        for (short j : tmpweeklist)
+                        {
+                            if (i == j && dayofweek == tmpdayofweek &&
+                                    ((classbegin <= tmpclassbegin && tmpclassbegin <= classend) ||
+                                            (classbegin <= tmpclassend && tmpclassend <= classend)))
+                            {
+                                connection.commit();
+                                connection.close();
+                                return EnrollResult.COURSE_CONFLICT_FOUND;
+                            }
+                        }
                     }
                 }
-                classbegin = rst.getShort(5);
-                classend = rst.getShort(6);
-                location = rst.getString(7);
             }
-            else
+            if (!hasclass)
             {
                 sql = "select coursesection.courseid "
                         + "from coursesection "
@@ -607,7 +746,7 @@ public class ReferenceStudentService implements StudentService {
                     courseid = rst.getString(1);
                     sql = "select courseid from studentgrades "
                             + "where studentgrades.studentid = ? "
-                            + "and studentgrades.PF is null and studentgrades.semesterid = ?";
+                            + "and studentgrades.semesterid = ?";
                     pst = (PreparedStatement) connection.prepareStatement(sql);
                     pst.setInt(1, studentId);
                     pst.setInt(2, semesterid);
@@ -665,64 +804,6 @@ public class ReferenceStudentService implements StudentService {
                 else
                 {
                     return EnrollResult.UNKNOWN_ERROR;
-                }
-            }
-            if (!passedPrerequisitesForCourse(studentId, courseid))
-            {
-                connection.commit();
-                connection.close();
-                return EnrollResult.PREREQUISITES_NOT_FULFILLED;
-            }
-            sql = "select coursesection.courseid, coursesection.leftcapacity, "
-                    + "coursesectionclass.dayofweek, coursesectionclass.weeklist, "
-                    + "coursesectionclass.classbegin, coursesectionclass.classend, "
-                    + "coursesectionclass.location "
-                    + "from coursesection "
-                    + "join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
-                    + "join studentgrades on studentgrades.sectionid = coursesection.id "
-                    + "where studentgrades.studentid = ? "
-                    + "and studentgrades.PF is null and studentgrades.semesterid = ?";
-            pst = (PreparedStatement) connection.prepareStatement(sql);
-            pst.setInt(1, studentId);
-            pst.setInt(2, semesterid);
-            rst = pst.executeQuery();
-            while(rst.next())
-            {
-                String tmpcourseid = rst.getString(1);
-                int tmpleftcapacity = rst.getInt(2);
-                int tmpdayofweek = rst.getInt(3);
-                Array tmparray = rst.getArray(4);
-                List<Short> tmpweeklist = new ArrayList<Short>();
-                if (tmparray != null)
-                {
-                    ResultSet arr = tmparray.getResultSet();
-                    while (arr.next())
-                    {
-                        tmpweeklist.add(arr.getShort(2));
-                    }
-                }
-                short tmpclassbegin = rst.getShort(5);
-                short tmpclassend = rst.getShort(6);
-                String tmplocation = rst.getString(7);
-                if (tmpcourseid.equalsIgnoreCase(courseid))
-                {
-                    connection.commit();
-                    connection.close();
-                    return EnrollResult.COURSE_CONFLICT_FOUND;
-                }
-                for (short i : weeklist)
-                {
-                    for (short j : tmpweeklist)
-                    {
-                        if (i == j && dayofweek == tmpdayofweek &&
-                                ((classbegin <= tmpclassbegin && tmpclassbegin <= classend) ||
-                                        (classbegin <= tmpclassend && tmpclassend <= classend)))
-                        {
-                            connection.commit();
-                            connection.close();
-                            return EnrollResult.COURSE_CONFLICT_FOUND;
-                        }
-                    }
                 }
             }
             if (leftcapacity == 0)
@@ -829,7 +910,7 @@ public class ReferenceStudentService implements StudentService {
             }
 //            else
 //            {
-//                connection.commit();
+//                //connection.commit();
 //                connection.close();
 //                throw new IntegrityViolationException();
 //            }
@@ -929,7 +1010,7 @@ public class ReferenceStudentService implements StudentService {
 //                throw new IntegrityViolationException();
 //            }
         }
-        catch (Exception e)
+        catch (SQLException e)
         {
             e.printStackTrace();
         }
@@ -1158,8 +1239,8 @@ public class ReferenceStudentService implements StudentService {
             }
             sql = "select studentgrades.courseid, studentgrades.sectionid from studentgrades "
                     + "join coursesection on coursesection.id = studentgrades.sectionid "
-                    + "where studentgrades.studentid = ? and studentgrades.grade is null "
-                    + "and studentgrades.pf is null and coursesection.semesterid = ?";
+                    + "where studentgrades.studentid = ? and coursesection.semesterid = ? ";
+                    //+ "and studentgrades.pf is null and studentgrades.grade is null";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, studentId);
             pst.setInt(2, semesterid);
