@@ -252,7 +252,6 @@ public class ReferenceStudentService implements StudentService {
                 {
                     continue;
                 }
-                havesection.add(sectionid);
                 if (ignoreMissingPrerequisites)
                 {
                     if (!passedPrerequisitesForCourse(studentId, courseid))
@@ -262,21 +261,15 @@ public class ReferenceStudentService implements StudentService {
                 }
                 if (ignorePassed)
                 {
-                    String subsql = "select * from studentgrades where studentid = ?";
+                    String subsql = "select * from studentgrades where studentid = ? "
+                            + "and courseid = ? and pf = 1";
                     PreparedStatement subpst = (PreparedStatement) connection.prepareStatement(subsql);
                     subpst.setInt(1, studentId);
+                    subpst.setString(2, courseid);
                     ResultSet subrst = subpst.executeQuery();
                     if (subrst.next())
                     {
-                        subsql = "select * from studentgrades where studentid = ? "
-                                + "and courseid = ? and pf = 1";
-                        subpst.setInt(1, studentId);
-                        subpst.setString(2, courseid);
-                        subrst = subpst.executeQuery();
-                        if (subrst.next())
-                        {
-                            continue;
-                        }
+                        continue;
                     }
                 }
                 Course course = new Course();
@@ -330,8 +323,8 @@ public class ReferenceStudentService implements StudentService {
                     }
                     else
                     {
-                        int tmpdayofweek = rst.getInt(1);
-                        Array tmparray = rst.getArray(2);
+                        int tmpdayofweek = subrst.getInt(1);
+                        Array tmparray = subrst.getArray(2);
                         List<Short> tmpweeklist = new ArrayList<Short>();
                         if (tmparray != null)
                         {
@@ -341,9 +334,9 @@ public class ReferenceStudentService implements StudentService {
                                 tmpweeklist.add(arr.getShort(2));
                             }
                         }
-                        short tmpclassbegin = rst.getShort(3);
-                        short tmpclassend = rst.getShort(4);
-                        String tmplocation = rst.getString(5);
+                        short tmpclassbegin = subrst.getShort(3);
+                        short tmpclassend = subrst.getShort(4);
+                        String tmplocation = subrst.getString(5);
                         for (short i : weeklist)
                         {
                             for (short j : tmpweeklist)
@@ -385,7 +378,7 @@ public class ReferenceStudentService implements StudentService {
 
                     });
                 }
-                if (isconflict)
+                if (isconflict && ignoreConflict)
                 {
                     continue;
                 }
@@ -467,6 +460,7 @@ public class ReferenceStudentService implements StudentService {
                     coursesectionclass.location = location;
                     sectionClasses.add(coursesectionclass);
                 }
+                havesection.add(sectionid);
                 CourseSearchEntry courseSearchEntry = new CourseSearchEntry();
                 courseSearchEntry.course = course;
                 courseSearchEntry.section = coursesection;
@@ -520,20 +514,11 @@ public class ReferenceStudentService implements StudentService {
             connection.setAutoCommit(false);
             connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
             PreparedStatement pst = null;
-            String sql = "select * from coursesection where id = ?";
+            String sql = "select courseid, semesterid from coursesection where id = ?";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, sectionId);
             ResultSet rst = pst.executeQuery();
-            if (!rst.next())
-            {
-                connection.commit();
-                connection.close();
-                return EnrollResult.COURSE_NOT_FOUND;
-            }
-            sql = "select semesterid from coursesection where id = ?";
-            pst = (PreparedStatement) connection.prepareStatement(sql);
-            pst.setInt(1, sectionId);
-            rst = pst.executeQuery();
+            String courseid;
             int semesterid;
             if (!rst.next())
             {
@@ -543,20 +528,21 @@ public class ReferenceStudentService implements StudentService {
             }
             else
             {
-                semesterid = rst.getInt(1);
+                courseid = rst.getString(1);
+                semesterid = rst.getInt(2);
             }
-            sql = "select courseid, grade, PF, semesterid from studentgrades where studentid = ? and sectionid = ?";
+            sql = "select grade, PF, semesterid, sectionid from studentgrades where studentid = ? and courseid = ?";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, studentId);
-            pst.setInt(2, sectionId);
+            pst.setString(2, courseid);
             rst = pst.executeQuery();
-            if (rst.next())
+            while (rst.next())
             {
-                String courseid = rst.getString(1);
-                Object grade = rst.getObject(2);
-                Object pf = rst.getObject(3);
-                int tmpsemester = rst.getInt(4);
-                if (pf == null && tmpsemester == semesterid)
+                Object grade = rst.getObject(1);
+                Object pf = rst.getObject(2);
+                int tmpsemester = rst.getInt(3);
+                int tmpsectionid = rst.getInt(4);
+                if (pf == null && tmpsemester == semesterid && tmpsectionid == sectionId)
                 {
                     connection.commit();
                     connection.close();
@@ -585,8 +571,7 @@ public class ReferenceStudentService implements StudentService {
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, sectionId);
             rst = pst.executeQuery();
-            String courseid = null;
-            int leftcapacity, dayofweek;
+            int leftcapacity = 0, dayofweek;
             short classbegin, classend;
             Short[] weeks;
             List<Short> weeklist = new ArrayList<Short>();
@@ -611,9 +596,76 @@ public class ReferenceStudentService implements StudentService {
             }
             else
             {
-                connection.commit();
-                connection.close();
-                return EnrollResult.UNKNOWN_ERROR;
+                sql = "select coursesection.courseid "
+                        + "from coursesection "
+                        + "where coursesection.id = ?";
+                pst = (PreparedStatement) connection.prepareStatement(sql);
+                pst.setInt(1, sectionId);
+                rst = pst.executeQuery();
+                if (rst.next())
+                {
+                    courseid = rst.getString(1);
+                    sql = "select courseid from studentgrades "
+                            + "where studentgrades.studentid = ? "
+                            + "and studentgrades.PF is null and studentgrades.semesterid = ?";
+                    pst = (PreparedStatement) connection.prepareStatement(sql);
+                    pst.setInt(1, studentId);
+                    pst.setInt(2, semesterid);
+                    rst = pst.executeQuery();
+                    while (rst.next())
+                    {
+                        String tmpid = rst.getString(1);
+                        if (tmpid.equalsIgnoreCase(courseid))
+                        {
+                            connection.commit();
+                            connection.close();
+                            return EnrollResult.COURSE_CONFLICT_FOUND;
+                        }
+                    }
+                    if (passedPrerequisitesForCourse(studentId, courseid))
+                    {
+                        sql = "select leftcapacity from coursesection where id = ?";
+                        pst = (PreparedStatement) connection.prepareStatement(sql);
+                        pst.setInt(1, sectionId);
+                        rst = pst.executeQuery();
+                        if (rst.next())
+                        {
+                            leftcapacity = rst.getInt(1);
+                        }
+                        if (leftcapacity == 0)
+                        {
+                            connection.commit();
+                            connection.close();
+                            return EnrollResult.COURSE_IS_FULL;
+                        }
+                        sql = "update coursesection set leftcapacity = ? where id = ?";
+                        pst = (PreparedStatement) connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+                        pst.setInt(1, leftcapacity - 1);
+                        pst.setInt(2, sectionId);
+                        pst.executeUpdate();
+                        sql = "insert into studentgrades(studentid, sectionid, courseid, semesterid, grade, pf) "
+                                + "values (?, ?, ?, ?, null, null)";
+                        pst = (PreparedStatement) connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+                        pst.setInt(1, studentId);
+                        pst.setInt(2, sectionId);
+                        pst.setString(3, courseid);
+                        pst.setInt(4, semesterid);
+                        pst.executeUpdate();
+                        connection.commit();
+                        connection.close();
+                        return EnrollResult.SUCCESS;
+                    }
+                    else
+                    {
+                        connection.commit();
+                        connection.close();
+                        return EnrollResult.PREREQUISITES_NOT_FULFILLED;
+                    }
+                }
+                else
+                {
+                    return EnrollResult.UNKNOWN_ERROR;
+                }
             }
             if (!passedPrerequisitesForCourse(studentId, courseid))
             {
@@ -707,7 +759,7 @@ public class ReferenceStudentService implements StudentService {
         {
             Connection connection = SQLDataSource.getInstance().getSQLConnection();
             connection.setAutoCommit(false);
-            connection.setTransactionIsolation(1);
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
             PreparedStatement pst = null;
             String sql = "select grade, pf from studentgrades where studentid = ? and sectionid = ?";
             pst = (PreparedStatement) connection.prepareStatement(sql);
@@ -720,7 +772,7 @@ public class ReferenceStudentService implements StudentService {
                 Object pf = rst.getObject(2);
                 if (pf != null)
                 {
-                    connection.commit();
+                    //connection.commit();
                     connection.close();
                     throw new IllegalStateException();
                 }
@@ -830,7 +882,7 @@ public class ReferenceStudentService implements StudentService {
                         }
                         else
                         {
-                            connection.commit();
+                            //connection.commit();
                             connection.close();
                             throw new IntegrityViolationException();
                         }
@@ -849,7 +901,7 @@ public class ReferenceStudentService implements StudentService {
                         }
                         else
                         {
-                            connection.commit();
+                            //connection.commit();
                             connection.close();
                             throw new IntegrityViolationException();
                         }
@@ -1150,7 +1202,7 @@ public class ReferenceStudentService implements StudentService {
                     short classend = subrst.getShort(9);
                     String location = subrst.getString(10);
                     int dayofweek = subrst.getInt(6);
-                    Array array = rst.getArray(7);
+                    Array array = subrst.getArray(7);
                     List<Short> weeklist = new ArrayList<Short>();
                     if (array != null)
                     {
