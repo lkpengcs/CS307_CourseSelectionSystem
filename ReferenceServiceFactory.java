@@ -12,6 +12,5 @@ public class ReferenceServiceFactory extends ServiceFactory {
         registerService(StudentService.class,new ReferenceStudentService());
         registerService(UserService.class,new ReferenceUserService());
         registerService(CourseService.class,new ReferenceCourseService());
-
     }
 }
