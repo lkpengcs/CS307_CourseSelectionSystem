@@ -48,16 +48,8 @@ public class ReferenceCourseService implements CourseService {
     }
 
     @Override
-    public void addCourse(String courseId, String courseName, int credit, int classHour, Course.CourseGrading grading, @Nullable Prerequisite prerequisite) {
+    public synchronized void addCourse(String courseId, String courseName, int credit, int classHour, Course.CourseGrading grading, @Nullable Prerequisite prerequisite) {
         try{
-            //或许需要修改，额外插入一个select语句
-            if (credit<0){
-                throw new IntegrityViolationException();
-            }
-            //同上
-            if (classHour<0){
-                throw new IntegrityViolationException();
-            }
             String sql="INSERT INTO Course(id,name,credit,classHour,grading,prerequisite) values(?,?,?,?,?,?)";
             //Statement.RETURN_GENERATED_KEYS:获取自动增加的id号
             Connection connection = SQLDataSource.getInstance().getSQLConnection();
@@ -79,22 +71,15 @@ public class ReferenceCourseService implements CourseService {
             //提交pst对象
             pst.executeUpdate();
             connection.close();
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
     }
 
     @Override
-    public int addCourseSection(String courseId, int semesterId, String sectionName, int totalCapacity) {
+    public synchronized int addCourseSection(String courseId, int semesterId, String sectionName, int totalCapacity) {
         Integer enterInfoId = 0;
         try{
-            //是否自增？
-//            if (semesterId<=0){
-//                throw new IntegrityViolationException();
-//            }
-//            if(totalCapacity<=0){
-//                throw new IntegrityViolationException();
-//            }
             String sql="INSERT INTO CourseSection(courseId,semesterId,SectionName,totalCapacity,leftCapacity) values(?,?,?,?,?)";
             //Statement.RETURN_GENERATED_KEYS:获取自动增加的id号
             Connection connection = SQLDataSource.getInstance().getSQLConnection();
@@ -112,30 +97,17 @@ public class ReferenceCourseService implements CourseService {
                 enterInfoId = rst.getInt(1);
             }
             connection.close();
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
+            throw new IntegrityViolationException();
         }
         return enterInfoId;
     }
 
     @Override
-    public int addCourseSectionClass(int sectionId, int instructorId, DayOfWeek dayOfWeek, Set<Short> weekList, short classStart, short classEnd, String location) {
-        Integer enterInfoId = 0;
+    public synchronized int addCourseSectionClass(int sectionId, int instructorId, DayOfWeek dayOfWeek, Set<Short> weekList, short classStart, short classEnd, String location) {
+        int enterInfoId = 0;
         try{
-            //记得要有外键连接，保证不存在时会报错，待改
-        if (sectionId<=0){
-            throw new IntegrityViolationException();
-        }
-           //记得要有外键连接，保证不存在时报错，待改
-        if (instructorId<=0){
-            throw new IntegrityViolationException();
-        }
-        if (weekList.isEmpty()){
-            throw new IntegrityViolationException();
-        }
-//        if (classStart <= 0 || classEnd <= 0 || classEnd > 10 || classStart > classEnd){
-//            throw new IntegrityViolationException();
-//        }
            String sql="INSERT INTO CourseSectionClass(CourseSectionId,instructor,dayofweek,weeklist,classBegin,classEnd,location) values(?,?,?,?,?,?,?)";
            //Statement.RETURN_GENERATED_KEYS:获取自动增加的id号
             Connection connection = SQLDataSource.getInstance().getSQLConnection();
@@ -176,8 +148,9 @@ public class ReferenceCourseService implements CourseService {
                enterInfoId = rst.getInt(1);
            }
            connection.close();
-       }catch (Exception e){
+       }catch (SQLException e){
            e.printStackTrace();
+           throw new IntegrityViolationException();
        }
         return enterInfoId;
     }
@@ -201,6 +174,9 @@ public class ReferenceCourseService implements CourseService {
                 pst = connection.prepareStatement(sql1);
                 pst.setString(1, courseId);
                 pst.executeUpdate();
+                pst = connection.prepareStatement("DELETE FROM major_course where courseid = ?");
+                pst.setString(1, courseId);
+                pst.executeUpdate();
                 String sql2 = "DELETE FROM courseSectionClass where coursesectionid in (select id from coursesection where courseid = ?)";
                 pst = connection.prepareStatement(sql2);
                 pst.setString(1, courseId);
@@ -221,7 +197,7 @@ public class ReferenceCourseService implements CourseService {
             connection.commit();
             connection.close();
 
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
 
@@ -262,7 +238,7 @@ public class ReferenceCourseService implements CourseService {
             connection.commit();
             connection.close();
 
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
     }
@@ -282,7 +258,6 @@ public class ReferenceCourseService implements CourseService {
                 exist = resultSet.getInt(1);
             }
             if (exist>0) {
-                connection = SQLDataSource.getInstance().getSQLConnection();
                 String sql1 = "DELETE FROM courseSectionClass where id = ?";
                 pst = connection.prepareStatement(sql1);
                 pst.setInt(1, classId);
@@ -294,7 +269,7 @@ public class ReferenceCourseService implements CourseService {
             }
             connection.commit();
             connection.close();
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
     }
@@ -330,7 +305,7 @@ public class ReferenceCourseService implements CourseService {
             }
             connection.commit();
             connection.close();
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
         return courseList;
@@ -391,7 +366,7 @@ public class ReferenceCourseService implements CourseService {
             connection.commit();
             connection.close();
 
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
         return courseSectionList;
@@ -447,14 +422,14 @@ public class ReferenceCourseService implements CourseService {
             connection.commit();
             connection.close();
 
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
         return cur;
     }
     public static String contact(String firstname, String lastname){
         String fullname;
-        if(firstname.matches("^[A-Za-z]+$") && lastname.matches("^[A-Za-z]+$"))
+        if(firstname.matches("^[A-Z\\sa-z]+$") && lastname.matches("^[A-Z\\sa-z]+$"))
             fullname = firstname + " " + lastname;
         else
             fullname = firstname + lastname;
@@ -517,14 +492,14 @@ public class ReferenceCourseService implements CourseService {
                 cur.id = id;
                 cur.instructor = new Instructor();
                 cur.instructor.id = instructorId;
-                String sql2 = "select * from instructor where id = ?";
+                String sql2 = "select * from user1 where id = ?";
                 PreparedStatement pst0 = connection.prepareStatement(sql2);
                 pst0.setInt(1,instructorId);
                 ResultSet resultSet0 =  pst0.executeQuery();
                 String fullName = null;
                 if (resultSet0.next()){
-                    String firstName = resultSet0.getString(1);
-                    String lastName = resultSet0.getString(2);
+                    String firstName = resultSet0.getString(2);
+                    String lastName = resultSet0.getString(3);
                     fullName  = contact(firstName,lastName);
                 }
                 cur.instructor.fullName = fullName;
@@ -538,7 +513,7 @@ public class ReferenceCourseService implements CourseService {
             connection.commit();
             connection.close();
 
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
         return courseSectionClassList;
@@ -586,7 +561,7 @@ public class ReferenceCourseService implements CourseService {
             connection.commit();
             connection.close();
 
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
         return cur;
@@ -627,7 +602,7 @@ public class ReferenceCourseService implements CourseService {
                 throw new EntityNotFoundException();
             }
 
-            String sql2 = "select student.id,student.firstname,student.lastname,student.enrolleddate,student.majorid,major.name,major.departmentid,department.name from student join Major on student.majorId = Major.id and student.id in (select studentId from studentGrades where studentGrades.sectionId in (select id from courseSection where courseSection.courseId = ? and courseSection.semesterId = ?)) join department on department.id = major.departmentId";
+            String sql2 = "select user1.id,user1.firstname,user1.lastname,user1.enrolledDate,user1.majorId,Major.name,Major.departmentId,Department.name from user1 join studentGrades on studentGrades.studentId = user1.id join Major on majorId = Major.id join Department on departmentId = Department.id where studentGrades.courseId = ? and studentGrades.semesterid = ?";
             pst = connection.prepareStatement(sql2);
             pst.setString(1,courseId);
             pst.setInt(2,semesterId);
@@ -657,7 +632,7 @@ public class ReferenceCourseService implements CourseService {
             }
             connection.commit();
             connection.close();
-        }catch (Exception e){
+        }catch (SQLException e){
             e.printStackTrace();
         }
         return studentList;

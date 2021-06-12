@@ -1,28 +1,30 @@
-package Implementation;
 
-import cn.edu.sustech.cs307.database.SQLDataSource;
-import cn.edu.sustech.cs307.dto.*;
-import cn.edu.sustech.cs307.dto.grade.Grade;
-import cn.edu.sustech.cs307.dto.grade.HundredMarkGrade;
-import cn.edu.sustech.cs307.dto.grade.PassOrFailGrade;
-import cn.edu.sustech.cs307.dto.prerequisite.AndPrerequisite;
-import cn.edu.sustech.cs307.dto.prerequisite.CoursePrerequisite;
-import cn.edu.sustech.cs307.dto.prerequisite.OrPrerequisite;
-import cn.edu.sustech.cs307.dto.prerequisite.Prerequisite;
-import cn.edu.sustech.cs307.exception.*;
-import cn.edu.sustech.cs307.service.StudentService;
-import org.postgresql.util.PSQLException;
 
-import javax.annotation.Nullable;
-import java.sql.*;
-import java.sql.Date;
-import java.text.SimpleDateFormat;
-import java.time.DayOfWeek;
-import java.util.*;
+        package Implementation;
+
+        import cn.edu.sustech.cs307.database.SQLDataSource;
+        import cn.edu.sustech.cs307.dto.*;
+        import cn.edu.sustech.cs307.dto.grade.Grade;
+        import cn.edu.sustech.cs307.dto.grade.HundredMarkGrade;
+        import cn.edu.sustech.cs307.dto.grade.PassOrFailGrade;
+        import cn.edu.sustech.cs307.dto.prerequisite.AndPrerequisite;
+        import cn.edu.sustech.cs307.dto.prerequisite.CoursePrerequisite;
+        import cn.edu.sustech.cs307.dto.prerequisite.OrPrerequisite;
+        import cn.edu.sustech.cs307.dto.prerequisite.Prerequisite;
+        import cn.edu.sustech.cs307.exception.*;
+        import cn.edu.sustech.cs307.service.StudentService;
+        import org.postgresql.util.PSQLException;
+
+        import javax.annotation.Nullable;
+        import java.sql.*;
+        import java.sql.Date;
+        import java.text.SimpleDateFormat;
+        import java.time.DayOfWeek;
+        import java.util.*;
 
 public class ReferenceStudentService implements StudentService {
     @Override
-    public void addStudent(int userId, int majorId, String firstName, String lastName, Date enrolledDate) {
+    public synchronized void addStudent(int userId, int majorId, String firstName, String lastName, Date enrolledDate) {
         try{
             if (userId < 0)
             {
@@ -34,20 +36,14 @@ public class ReferenceStudentService implements StudentService {
             }
             Connection connection = SQLDataSource.getInstance().getSQLConnection();
             PreparedStatement pst;
-            String sql = "INSERT INTO student(id,firstname,lastname,enrolleddate,majorid) values(?,?,?,?,?)";
+            String sql = "INSERT INTO user1(id,firstname,lastname,enrolleddate,majorid,type) values(?,?,?,?,?,?)";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, userId);
             pst.setString(2, firstName);
             pst.setString(3, lastName);
             pst.setDate(4, enrolledDate);
             pst.setInt(5, majorId);
-            pst.executeUpdate();
-            sql = "INSERT INTO user1(id,firstname,lastname,role) values(?,?,?,?)";
-            pst = (PreparedStatement) connection.prepareStatement(sql);
-            pst.setInt(1, userId);
-            pst.setString(2, firstName);
-            pst.setString(3, lastName);
-            pst.setInt(4, 1);
+            pst.setInt(6,1);
             pst.executeUpdate();
             connection.close();
         }catch (Exception e){
@@ -72,7 +68,7 @@ public class ReferenceStudentService implements StudentService {
                     + "from "
                     + "course join coursesection on coursesection.courseid = course.id "
                     + "left outer join coursesectionclass on coursesectionclass.coursesectionid = coursesection.id "
-                    + "join instructor on instructor.id = coursesectionclass.instructor ";
+                    + "join user1 on user1.id = coursesectionclass.instructor and user1.type = 2 ";
             switch (searchCourseType)
             {
                 case ALL:
@@ -123,10 +119,10 @@ public class ReferenceStudentService implements StudentService {
             }
             if (searchInstructor != null)
             {
-                String subq = "instructor.firstname||instructor.lastname like (?)||'%' "
-                        + "or instructor.firstname||' '||instructor.lastname like (?)||'%' "
-                        + "or instructor.firstname like (?)||'%' "
-                        + "or instructor.lastname like (?)||'%' ";
+                String subq = "user1.firstname||user1.lastname like (?)||'%' "
+                        + "or user1.firstname||' '||user1.lastname like (?)||'%' "
+                        + "or user1.firstname like (?)||'%' "
+                        + "or user1.lastname like (?)||'%' ";
                 sql = sql + "and (" + subq + ") ";
             }
             if (searchDayOfWeek != null)
@@ -406,13 +402,7 @@ public class ReferenceStudentService implements StudentService {
                 {
                     if (havesection.containsKey(sectionid))
                     {
-                        for (String name : conflictCourseNames)
-                        {
-                            if (!havesection.get(sectionid).contains(name))
-                            {
-                                havesection.get(sectionid).add(name);
-                            }
-                        }
+                        havesection.get(sectionid).addAll(conflictCourseNames);
                     }
                     else
                     {
@@ -429,58 +419,40 @@ public class ReferenceStudentService implements StudentService {
                 int sectionid = entry.getKey();
                 String subsql = "select coursesectionclass.id, coursesectionclass.dayofweek, coursesectionclass.weeklist, "
                         + "coursesectionclass.classbegin, coursesectionclass.classend, coursesectionclass.location, "
-                        + "instructor.firstname, instructor.lastname, instructor.id, "
-                        + "coursesection.courseid "
-                        + "from coursesectionclass join instructor on coursesectionclass.instructor = instructor.id "
-                        + "join coursesection on coursesection.id = coursesectionclass.coursesectionid "
+                        + "user1.firstname, user1.lastname, user1.id "
+                        + "from coursesectionclass join user1 on coursesectionclass.instructor = user1.id and type = 2"
                         + "where coursesectionclass.coursesectionid = ?";
                 PreparedStatement subpst = (PreparedStatement) connection.prepareStatement(subsql);
                 subpst.setInt(1, sectionid);
                 ResultSet subrst = subpst.executeQuery();
                 Set<CourseSectionClass> sectionClasses = new HashSet<CourseSectionClass>();
-                boolean judge = true;
-                List<String> names = entry.getValue();
                 while (subrst.next())
                 {
                     int coursesectionclassid = subrst.getInt(1);
                     DayOfWeek dayweek;
-                    int dayofweek = 0;
-                    switch (subrst.getInt(2)) {
-                        case 1: {
+                    switch (subrst.getInt(2))
+                    {
+                        case 1:
                             dayweek = DayOfWeek.MONDAY;
-                            dayofweek = 1;
                             break;
-                        }
-                        case 2: {
+                        case 2:
                             dayweek = DayOfWeek.TUESDAY;
-                            dayofweek = 2;
                             break;
-                        }
-                        case 3: {
+                        case 3:
                             dayweek = DayOfWeek.WEDNESDAY;
-                            dayofweek = 3;
                             break;
-                        }
-                        case 4:{
+                        case 4:
                             dayweek = DayOfWeek.THURSDAY;
-                            dayofweek = 4;
                             break;
-                        }
-                        case 5: {
+                        case 5:
                             dayweek = DayOfWeek.FRIDAY;
-                            dayofweek = 5;
                             break;
-                        }
-                        case 6:{
+                        case 6:
                             dayweek = DayOfWeek.SATURDAY;
-                            dayofweek = 6;
                             break;
-                        }
-                        case 7:{
+                        case 7:
                             dayweek = DayOfWeek.SUNDAY;
-                            dayofweek = 7;
                             break;
-                        }
                         default:
                             dayweek = null;
                     }
@@ -496,100 +468,6 @@ public class ReferenceStudentService implements StudentService {
                     }
                     short classbegin = subrst.getShort(4);
                     short classend = subrst.getShort(5);
-                    String courseid = subrst.getString(10);
-                    String subsubsql = "select coursesectionclass.dayofweek, coursesectionclass.weeklist, "
-                            + "coursesectionclass.classbegin, coursesectionclass.classend, coursesectionclass.location, "
-                            + "course.name, coursesection.sectionname, course.id, "
-                            + "studentgrades.sectionid "
-                            + "from studentgrades join coursesection on studentgrades.sectionid = coursesection.id "
-                            + "join course on studentgrades.courseid = course.id "
-                            + "left outer join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
-                            + "where studentgrades.studentid = ? and studentgrades.semesterid = ?";
-                    //+ "and studentgrades.grade is null and studentgrades.pf is null";
-                    PreparedStatement subsubpst = (PreparedStatement) connection.prepareStatement(subsubsql);
-                    subsubpst.setInt(1, studentId);
-                    subsubpst.setInt(2, semesterId);
-                    ResultSet subsubrst = subsubpst.executeQuery();
-                    boolean isconflict = false;
-                    while (subsubrst.next())
-                    {
-                        if (subsubrst.getString(8).equals(courseid))
-                        {
-                            if (!ignoreConflict)
-                            {
-                                String coursefullname = String.format("%s[%s]", subsubrst.getString(6), subsubrst.getString(7));
-                                if (!(names.contains(coursefullname)))
-                                {
-                                    names.add(coursefullname);
-                                }
-                            }
-                            else
-                            {
-                                isconflict = true;
-                            }
-                        }
-                        else
-                        {
-                            Object subo = subsubrst.getObject(1);
-                            int tmpdayofweek = -2;
-                            List<Short> tmpweeklist = new ArrayList<Short>();
-                            short tmpclassbegin = -1, tmpclassend = -1;
-                            String tmplocation = null;
-                            if (subo != null)
-                            {
-                                tmpdayofweek = subsubrst.getInt(1);
-                                Array tmparray = subsubrst.getArray(2);
-                                if (tmparray != null)
-                                {
-                                    ResultSet arr = tmparray.getResultSet();
-                                    while (arr.next())
-                                    {
-                                        tmpweeklist.add(arr.getShort(2));
-                                    }
-                                }
-                                tmpclassbegin = subsubrst.getShort(3);
-                                tmpclassend = subsubrst.getShort(4);
-                                tmplocation = subsubrst.getString(5);
-                            }
-                            for (short i : weeklist)
-                            {
-                                for (short j : tmpweeklist)
-                                {
-                                    if (i == j && dayofweek == tmpdayofweek &&
-                                            ((classbegin <= tmpclassbegin && tmpclassbegin <= classend) ||
-                                                    (classbegin <= tmpclassend && tmpclassend <= classend)) )
-                                    {
-                                        if (!ignoreConflict)
-                                        {
-                                            String coursefullname = String.format("%s[%s]", subsubrst.getString(6), subsubrst.getString(7));
-                                            if (!(names.contains(coursefullname)))
-                                            {
-                                                names.add(coursefullname);
-                                            }
-                                        }
-                                        else
-                                        {
-                                            isconflict = true;
-                                            break;
-                                        }
-                                    }
-                                }
-                                if (ignoreConflict && isconflict)
-                                {
-                                    break;
-                                }
-                            }
-                        }
-                        if (ignoreConflict && isconflict)
-                        {
-                            break;
-                        }
-                    }
-                    if (ignoreConflict && isconflict)
-                    {
-                        judge = false;
-                        break;
-                    }
                     String location = subrst.getString(6);
                     String firstname = subrst.getString(7);
                     String lastname = subrst.getString(8);
@@ -611,10 +489,6 @@ public class ReferenceStudentService implements StudentService {
                     coursesectionclass.classEnd = classend;
                     coursesectionclass.location = location;
                     sectionClasses.add(coursesectionclass);
-                }
-                if (!judge)
-                {
-                    continue;
                 }
                 subsql = "select course.id, course.name, course.credit, course.classhour, course.grading, "
                         + "coursesection.id, coursesection.sectionname, coursesection.totalcapacity, coursesection.leftcapacity "
@@ -640,22 +514,7 @@ public class ReferenceStudentService implements StudentService {
                     courseSearchEntry.course = course;
                     courseSearchEntry.section = coursesection;
                     courseSearchEntry.sectionClasses = sectionClasses;
-                    if (!ignoreConflict)
-                    {
-                        names.sort(new Comparator<String>() {
-
-                            @Override
-                            public int compare(String o1, String o2) {
-                                if (o1.equalsIgnoreCase(o2)) {
-                                    return 0;
-                                } else {
-                                    return o1.toUpperCase().compareTo(o2.toUpperCase()) > 0 ? 1 : -1;
-                                }
-                            }
-
-                        });
-                    }
-                    courseSearchEntry.conflictCourseNames = names;
+                    courseSearchEntry.conflictCourseNames = entry.getValue();
                     result.add(courseSearchEntry);
                 }
             }
@@ -697,6 +556,7 @@ public class ReferenceStudentService implements StudentService {
         }
         return null;
     }
+
     @Override
     public EnrollResult enrollCourse(int studentId, int sectionId) {
         try{
@@ -1231,7 +1091,7 @@ public class ReferenceStudentService implements StudentService {
             connection.setAutoCommit(false);
             connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
             PreparedStatement pst = null;
-            String sql = "select count(*) from student where id = ?";
+            String sql = "select count(*) from user1 where id = ? and type = 1";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, studentId);
             ResultSet rst = pst.executeQuery();
@@ -1376,7 +1236,7 @@ public class ReferenceStudentService implements StudentService {
             sql = "select studentgrades.courseid, studentgrades.sectionid from studentgrades "
                     + "join coursesection on coursesection.id = studentgrades.sectionid "
                     + "where studentgrades.studentid = ? and coursesection.semesterid = ? ";
-                    //+ "and studentgrades.pf is null and studentgrades.grade is null";
+            //+ "and studentgrades.pf is null and studentgrades.grade is null";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, studentId);
             pst.setInt(2, semesterid);
@@ -1386,14 +1246,14 @@ public class ReferenceStudentService implements StudentService {
                 String courseid = rst.getString(1);
                 int sectionid = rst.getInt(2);
                 String subsql = "select course.name, coursesection.sectionname, "
-                        + "instructor.firstname, instructor.lastname, instructor.id, "
+                        + "user1.firstname, user1.lastname, user1.id, "
                         + "coursesectionclass.dayofweek, coursesectionclass.weeklist,"
                         + "coursesectionclass.classbegin, coursesectionclass.classend,"
                         + "coursesectionclass.location "
                         + "from "
                         + "course join coursesection on course.id = coursesection.courseid "
                         + "join coursesectionclass on coursesectionclass.coursesectionid = coursesection.id "
-                        + "join instructor on coursesectionclass.instructor = instructor.id "
+                        + "join user1 on coursesectionclass.instructor = user1.id "
                         + "where course.id = ? and coursesection.id = ?";
                 PreparedStatement subpst = (PreparedStatement) connection.prepareStatement(subsql);
                 subpst.setString(1, courseid);
@@ -1620,7 +1480,7 @@ public class ReferenceStudentService implements StudentService {
             connection.setAutoCommit(false);
             connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
             PreparedStatement pst = null;
-            String sql = "select count(*) from student where id = ?";
+            String sql = "select count(*) from user1 where id = ? and type = 1";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, studentId);
             ResultSet rst = pst.executeQuery();
@@ -1634,7 +1494,7 @@ public class ReferenceStudentService implements StudentService {
                     throw new EntityNotFoundException();
                 }
             }
-            sql = "select count(*) from student where id = ?";
+            sql = "select count(*) from user1 where id = ? and type = 1";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, studentId);
             rst = pst.executeQuery();
@@ -1648,7 +1508,7 @@ public class ReferenceStudentService implements StudentService {
                     throw new EntityNotFoundException();
                 }
             }
-            sql = "select majorid from student where id = ?";
+            sql = "select majorid from user1 where id = ? and type = 1";
             pst = (PreparedStatement) connection.prepareStatement(sql);
             pst.setInt(1, studentId);
             rst = pst.executeQuery();
@@ -1692,3 +1552,4 @@ public class ReferenceStudentService implements StudentService {
         return null;
     }
 }
+
