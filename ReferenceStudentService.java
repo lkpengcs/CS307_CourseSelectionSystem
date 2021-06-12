@@ -129,31 +129,31 @@ public class ReferenceStudentService implements StudentService {
                         + "or instructor.lastname like (?)||'%' ";
                 sql = sql + "and (" + subq + ") ";
             }
-//            if (searchDayOfWeek != null)
-//            {
-//                sql = sql + "and coursesectionclass.dayofweek = ? ";
-//            }
-//            if (searchClassTime != null)
-//            {
-//                sql = sql + "and coursesectionclass.classbegin <= ? and coursesectionclass.classend >= ? ";
-//            }
-//            if (searchClassLocations != null)
-//            {
-//                int len = searchClassLocations.size();
-//                if (len > 0)
-//                {
-//                    sql = sql + "and (";
-//                    for (int i = 0; i < len - 1; i++)
-//                    {
-//                        sql = sql + " position(? in coursesectionclass.location) > 0 or ";
-//                    }
-//                    sql = sql + "position(? in coursesectionclass.location) > 0 ) ";
-//                }
-//                else
-//                {
-//                    sql = sql + "and false ";
-//                }
-//            }
+            if (searchDayOfWeek != null)
+            {
+                sql = sql + "and coursesectionclass.dayofweek = ? ";
+            }
+            if (searchClassTime != null)
+            {
+                sql = sql + "and coursesectionclass.classbegin <= ? and coursesectionclass.classend >= ? ";
+            }
+            if (searchClassLocations != null)
+            {
+                int len = searchClassLocations.size();
+                if (len > 0)
+                {
+                    sql = sql + "and (";
+                    for (int i = 0; i < len - 1; i++)
+                    {
+                        sql = sql + " position(? in coursesectionclass.location) > 0 or ";
+                    }
+                    sql = sql + "position(? in coursesectionclass.location) > 0 ) ";
+                }
+                else
+                {
+                    sql = sql + "and false ";
+                }
+            }
             if (ignoreFull)
             {
                 sql = sql + "and coursesection.leftcapacity > 0 ";
@@ -191,49 +191,49 @@ public class ReferenceStudentService implements StudentService {
                 pos++;
                 pst.setString(pos, searchInstructor);
             }
-//            if (searchDayOfWeek != null)
-//            {
-//                pos++;
-//                switch (searchDayOfWeek)
-//                {
-//                    case MONDAY:
-//                        pst.setInt(pos, 1);
-//                        break;
-//                    case TUESDAY:
-//                        pst.setInt(pos, 2);
-//                        break;
-//                    case WEDNESDAY:
-//                        pst.setInt(pos, 3);
-//                        break;
-//                    case THURSDAY:
-//                        pst.setInt(pos, 4);
-//                        break;
-//                    case FRIDAY:
-//                        pst.setInt(pos, 5);
-//                        break;
-//                    case SATURDAY:
-//                        pst.setInt(pos, 6);
-//                        break;
-//                    case SUNDAY:
-//                        pst.setInt(pos, 7);
-//                        break;
-//                    default:
-//                }
-//            }
-//            if (searchClassTime != null)
-//            {
-//                pos++;
-//                pst.setShort(pos, searchClassTime);
-//                pos++;
-//                pst.setShort(pos, searchClassTime);
-//            }
-//            if (searchClassLocations != null)
-//            {
-//                for (String searchClassLocation : searchClassLocations) {
-//                    pos++;
-//                    pst.setString(pos, searchClassLocation);
-//                }
-//            }
+            if (searchDayOfWeek != null)
+            {
+                pos++;
+                switch (searchDayOfWeek)
+                {
+                    case MONDAY:
+                        pst.setInt(pos, 1);
+                        break;
+                    case TUESDAY:
+                        pst.setInt(pos, 2);
+                        break;
+                    case WEDNESDAY:
+                        pst.setInt(pos, 3);
+                        break;
+                    case THURSDAY:
+                        pst.setInt(pos, 4);
+                        break;
+                    case FRIDAY:
+                        pst.setInt(pos, 5);
+                        break;
+                    case SATURDAY:
+                        pst.setInt(pos, 6);
+                        break;
+                    case SUNDAY:
+                        pst.setInt(pos, 7);
+                        break;
+                    default:
+                }
+            }
+            if (searchClassTime != null)
+            {
+                pos++;
+                pst.setShort(pos, searchClassTime);
+                pos++;
+                pst.setShort(pos, searchClassTime);
+            }
+            if (searchClassLocations != null)
+            {
+                for (String searchClassLocation : searchClassLocations) {
+                    pos++;
+                    pst.setString(pos, searchClassLocation);
+                }
+            }
             rst = pst.executeQuery();
             List<CourseSearchEntry> result = new ArrayList<CourseSearchEntry>();
             Map<Integer, List<String>> havesection = new HashMap<>();
@@ -293,77 +293,6 @@ public class ReferenceStudentService implements StudentService {
                     classbegin = rst.getShort(12);
                     classend = rst.getShort(13);
                     location = rst.getString(14);
-                    if (searchDayOfWeek != null)
-                    {
-                        switch (searchDayOfWeek)
-                        {
-                            case MONDAY:
-                                if (dayofweek != 1)
-                                {
-                                    continue;
-                                }
-                                break;
-                            case TUESDAY:
-                                if (dayofweek != 2)
-                                {
-                                    continue;
-                                }
-                                break;
-                            case WEDNESDAY:
-                                if (dayofweek != 3)
-                                {
-                                    continue;
-                                }
-                                break;
-                            case THURSDAY:
-                                if (dayofweek != 4)
-                                {
-                                    continue;
-                                }
-                                break;
-                            case FRIDAY:
-                                if (dayofweek != 5)
-                                {
-                                    continue;
-                                }
-                                break;
-                            case SATURDAY:
-                                if (dayofweek != 6)
-                                {
-                                    continue;
-                                }
-                                break;
-                            case SUNDAY:
-                                if (dayofweek != 7)
-                                {
-                                    continue;
-                                }
-                                break;
-                            default:
-                        }
-                    }
-                    if (searchClassTime != null)
-                    {
-                        if (!(classbegin <= searchClassTime && classend >= searchClassTime))
-                        {
-                            continue;
-                        }
-                    }
-                    if (searchClassLocations != null)
-                    {
-                        boolean judge = false;
-                        for (String searchClassLocation : searchClassLocations) {
-                            if (location.contains(searchClassLocation))
-                            {
-                                judge = true;
-                                break;
-                            }
-                        }
-                        if (!judge)
-                        {
-                            continue;
-                        }
-                    }
                 }
                 String subsql = "select coursesectionclass.dayofweek, coursesectionclass.weeklist, "
                         + "coursesectionclass.classbegin, coursesectionclass.classend, coursesectionclass.location, "
@@ -373,7 +302,7 @@ public class ReferenceStudentService implements StudentService {
                         + "join course on studentgrades.courseid = course.id "
                         + "left outer join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
                         + "where studentgrades.studentid = ? and studentgrades.semesterid = ?";
-                        //+ "and studentgrades.grade is null and studentgrades.pf is null";
+                //+ "and studentgrades.grade is null and studentgrades.pf is null";
                 PreparedStatement subpst = (PreparedStatement) connection.prepareStatement(subsql);
                 subpst.setInt(1, studentId);
                 subpst.setInt(2, semesterId);
@@ -453,6 +382,21 @@ public class ReferenceStudentService implements StudentService {
                         break;
                     }
                 }
+                if (!ignoreConflict)
+                {
+                    conflictCourseNames.sort(new Comparator<String>() {
+
+                        @Override
+                        public int compare(String o1, String o2) {
+                            if (o1.equalsIgnoreCase(o2)) {
+                                return 0;
+                            } else {
+                                return o1.toUpperCase().compareTo(o2.toUpperCase()) > 0 ? 1 : -1;
+                            }
+                        }
+
+                    });
+                }
                 if (isconflict && ignoreConflict)
                 {
                     conflictids.put(sectionid, 1);
@@ -460,44 +404,23 @@ public class ReferenceStudentService implements StudentService {
                 }
                 else
                 {
-//                    if (sectionid == 103)
-//                    {
-//                        if (havesection.containsKey(sectionid))
-//                        for (String name : havesection.get(sectionid))
-//                        {
-//                            System.out.print(name);
-//                            System.out.print(' ');
-//                        }
-//                        System.out.println();
-//                    }
-                    if (!(conflictids.containsKey(sectionid)))
+                    if (havesection.containsKey(sectionid))
                     {
-                        if (havesection.containsKey(sectionid))
+                        for (String name : conflictCourseNames)
                         {
-                            for (String name : conflictCourseNames)
+                            if (!havesection.get(sectionid).contains(name))
                             {
-                                if (!havesection.get(sectionid).contains(name))
-                                {
-                                    havesection.get(sectionid).add(name);
-                                }
+                                havesection.get(sectionid).add(name);
                             }
                         }
-                        else
+                    }
+                    else
+                    {
+                        if (!conflictids.containsKey(sectionid))
                         {
                             havesection.put(sectionid, conflictCourseNames);
                         }
                     }
-//                    if (havesection.containsKey(sectionid))
-//                    {
-//                        havesection.get(sectionid).addAll(conflictCourseNames);
-//                    }
-//                    else
-//                    {
-//                        if (!conflictids.containsKey(sectionid))
-//                        {
-//                            havesection.put(sectionid, conflictCourseNames);
-//                        }
-//                    }
                 }
             }
             Set<Map.Entry<Integer, List<String>>> entrySet = havesection.entrySet();
@@ -506,199 +429,234 @@ public class ReferenceStudentService implements StudentService {
                 int sectionid = entry.getKey();
                 String subsql = "select coursesectionclass.id, coursesectionclass.dayofweek, coursesectionclass.weeklist, "
                         + "coursesectionclass.classbegin, coursesectionclass.classend, coursesectionclass.location, "
-                        + "instructor.firstname, instructor.lastname, instructor.id "
+                        + "instructor.firstname, instructor.lastname, instructor.id, "
+                        + "coursesection.courseid "
                         + "from coursesectionclass join instructor on coursesectionclass.instructor = instructor.id "
-                        + "where coursesectionclass.coursesectionid = ? ";
-                if (searchDayOfWeek != null)
-                {
-                    subsql = subsql + "and coursesectionclass.dayofweek = ? ";
-                }
-                if (searchClassTime != null)
-                {
-                    subsql = subsql + "and coursesectionclass.classbegin <= ? and coursesectionclass.classend >= ? ";
-                }
-                if (searchClassLocations != null)
-                {
-                    int len = searchClassLocations.size();
-                    if (len > 0)
-                    {
-                        subsql = subsql + "and (";
-                        for (int i = 0; i < len - 1; i++)
-                        {
-                            subsql = subsql + " position(? in coursesectionclass.location) > 0 or ";
-                        }
-                        subsql = subsql + "position(? in coursesectionclass.location) > 0 ) ";
-                    }
-                    else
-                    {
-                        subsql = subsql + "and false ";
-                    }
-                }
+                        + "join coursesection on coursesection.id = coursesectionclass.coursesectionid "
+                        + "where coursesectionclass.coursesectionid = ?";
                 PreparedStatement subpst = (PreparedStatement) connection.prepareStatement(subsql);
                 subpst.setInt(1, sectionid);
-                pos = 1;
-                if (searchDayOfWeek != null)
-                {
-                    pos++;
-                    switch (searchDayOfWeek)
-                    {
-                        case MONDAY:
-                            subpst.setInt(pos, 1);
-                            break;
-                        case TUESDAY:
-                            subpst.setInt(pos, 2);
-                            break;
-                        case WEDNESDAY:
-                            subpst.setInt(pos, 3);
-                            break;
-                        case THURSDAY:
-                            subpst.setInt(pos, 4);
-                            break;
-                        case FRIDAY:
-                            subpst.setInt(pos, 5);
-                            break;
-                        case SATURDAY:
-                            subpst.setInt(pos, 6);
-                            break;
-                        case SUNDAY:
-                            subpst.setInt(pos, 7);
-                            break;
-                        default:
-                    }
-                }
-                if (searchClassTime != null)
-                {
-                    pos++;
-                    subpst.setShort(pos, searchClassTime);
-                    pos++;
-                    subpst.setShort(pos, searchClassTime);
-                }
-                if (searchClassLocations != null)
-                {
-                    for (String searchClassLocation : searchClassLocations) {
-                        pos++;
-                        subpst.setString(pos, searchClassLocation);
-                    }
-                }
                 ResultSet subrst = subpst.executeQuery();
-                if (subrst.next())
+                Set<CourseSectionClass> sectionClasses = new HashSet<CourseSectionClass>();
+                boolean judge = true;
+                List<String> names = entry.getValue();
+                while (subrst.next())
                 {
-                    Set<CourseSectionClass> sectionClasses = new HashSet<CourseSectionClass>();
-                    subsql = "select coursesectionclass.id, coursesectionclass.dayofweek, coursesectionclass.weeklist, "
-                            + "coursesectionclass.classbegin, coursesectionclass.classend, coursesectionclass.location, "
-                            + "instructor.firstname, instructor.lastname, instructor.id "
-                            + "from coursesectionclass join instructor on coursesectionclass.instructor = instructor.id "
-                            + "where coursesectionclass.coursesectionid = ? ";
-                    subpst = (PreparedStatement) connection.prepareStatement(subsql);
-                    subpst.setInt(1, sectionid);
-                    subrst = subpst.executeQuery();
-                    while (subrst.next())
-                    {
-                        int coursesectionclassid = subrst.getInt(1);
-                        DayOfWeek dayweek;
-                        switch (subrst.getInt(2))
-                        {
-                            case 1:
-                                dayweek = DayOfWeek.MONDAY;
-                                break;
-                            case 2:
-                                dayweek = DayOfWeek.TUESDAY;
-                                break;
-                            case 3:
-                                dayweek = DayOfWeek.WEDNESDAY;
-                                break;
-                            case 4:
-                                dayweek = DayOfWeek.THURSDAY;
-                                break;
-                            case 5:
-                                dayweek = DayOfWeek.FRIDAY;
-                                break;
-                            case 6:
-                                dayweek = DayOfWeek.SATURDAY;
-                                break;
-                            case 7:
-                                dayweek = DayOfWeek.SUNDAY;
-                                break;
-                            default:
-                                dayweek = null;
+                    int coursesectionclassid = subrst.getInt(1);
+                    DayOfWeek dayweek;
+                    int dayofweek = 0;
+                    switch (subrst.getInt(2)) {
+                        case 1: {
+                            dayweek = DayOfWeek.MONDAY;
+                            dayofweek = 1;
+                            break;
                         }
-                        Array array = subrst.getArray(3);
-                        List<Short> weeklist = new ArrayList<Short>();
-                        if (array != null)
+                        case 2: {
+                            dayweek = DayOfWeek.TUESDAY;
+                            dayofweek = 2;
+                            break;
+                        }
+                        case 3: {
+                            dayweek = DayOfWeek.WEDNESDAY;
+                            dayofweek = 3;
+                            break;
+                        }
+                        case 4:{
+                            dayweek = DayOfWeek.THURSDAY;
+                            dayofweek = 4;
+                            break;
+                        }
+                        case 5: {
+                            dayweek = DayOfWeek.FRIDAY;
+                            dayofweek = 5;
+                            break;
+                        }
+                        case 6:{
+                            dayweek = DayOfWeek.SATURDAY;
+                            dayofweek = 6;
+                            break;
+                        }
+                        case 7:{
+                            dayweek = DayOfWeek.SUNDAY;
+                            dayofweek = 7;
+                            break;
+                        }
+                        default:
+                            dayweek = null;
+                    }
+                    Array array = subrst.getArray(3);
+                    List<Short> weeklist = new ArrayList<Short>();
+                    if (array != null)
+                    {
+                        ResultSet arr = array.getResultSet();
+                        while (arr.next())
                         {
-                            ResultSet arr = array.getResultSet();
-                            while (arr.next())
+                            weeklist.add(arr.getShort(2));
+                        }
+                    }
+                    short classbegin = subrst.getShort(4);
+                    short classend = subrst.getShort(5);
+                    String courseid = subrst.getString(10);
+                    String subsubsql = "select coursesectionclass.dayofweek, coursesectionclass.weeklist, "
+                            + "coursesectionclass.classbegin, coursesectionclass.classend, coursesectionclass.location, "
+                            + "course.name, coursesection.sectionname, course.id, "
+                            + "studentgrades.sectionid "
+                            + "from studentgrades join coursesection on studentgrades.sectionid = coursesection.id "
+                            + "join course on studentgrades.courseid = course.id "
+                            + "left outer join coursesectionclass on coursesection.id = coursesectionclass.coursesectionid "
+                            + "where studentgrades.studentid = ? and studentgrades.semesterid = ?";
+                    //+ "and studentgrades.grade is null and studentgrades.pf is null";
+                    PreparedStatement subsubpst = (PreparedStatement) connection.prepareStatement(subsubsql);
+                    subsubpst.setInt(1, studentId);
+                    subsubpst.setInt(2, semesterId);
+                    ResultSet subsubrst = subsubpst.executeQuery();
+                    boolean isconflict = false;
+                    while (subsubrst.next())
+                    {
+                        if (subsubrst.getString(8).equals(courseid))
+                        {
+                            if (!ignoreConflict)
                             {
-                                weeklist.add(arr.getShort(2));
+                                String coursefullname = String.format("%s[%s]", subsubrst.getString(6), subsubrst.getString(7));
+                                if (!(names.contains(coursefullname)))
+                                {
+                                    names.add(coursefullname);
+                                }
+                            }
+                            else
+                            {
+                                isconflict = true;
                             }
                         }
-                        short classbegin = subrst.getShort(4);
-                        short classend = subrst.getShort(5);
-                        String location = subrst.getString(6);
-                        String firstname = subrst.getString(7);
-                        String lastname = subrst.getString(8);
-                        String fullname;
-                        if(firstname.matches("^[A-Z\\sa-z]+$") && lastname.matches("^[A-Z\\sa-z]+$"))
-                            fullname = firstname + " " + lastname;
                         else
-                            fullname = firstname + lastname;
-                        int instructorid = subrst.getInt(9);
-                        Instructor instructor = new Instructor();
-                        instructor.id = instructorid;
-                        instructor.fullName = fullname;
-                        CourseSectionClass coursesectionclass = new CourseSectionClass();
-                        coursesectionclass.id = coursesectionclassid;
-                        coursesectionclass.instructor = instructor;
-                        coursesectionclass.dayOfWeek = dayweek;
-                        coursesectionclass.weekList = new HashSet<>(weeklist);
-                        coursesectionclass.classBegin = classbegin;
-                        coursesectionclass.classEnd = classend;
-                        coursesectionclass.location = location;
-                        sectionClasses.add(coursesectionclass);
-                    }
-                    subsql = "select course.id, course.name, course.credit, course.classhour, course.grading, "
-                            + "coursesection.id, coursesection.sectionname, coursesection.totalcapacity, coursesection.leftcapacity "
-                            + "from course join coursesection on course.id = coursesection.courseid "
-                            + "where coursesection.id = ?";
-                    subpst = (PreparedStatement) connection.prepareStatement(subsql);
-                    subpst.setInt(1, sectionid);
-                    subrst = subpst.executeQuery();
-                    if (subrst.next())
-                    {
-                        CourseSearchEntry courseSearchEntry = new CourseSearchEntry();
-                        Course course = new Course();
-                        course.id = subrst.getString(1);
-                        course.name = subrst.getString(2);
-                        course.credit = subrst.getInt(3);
-                        course.classHour = subrst.getInt(4);
-                        course.grading = (subrst.getString(5).equals("HundredMarkScore")? Course.CourseGrading.HUNDRED_MARK_SCORE:Course.CourseGrading.PASS_OR_FAIL);
-                        CourseSection coursesection = new CourseSection();
-                        coursesection.id = sectionid;
-                        coursesection.name = subrst.getString(7);
-                        coursesection.totalCapacity = subrst.getInt(8);
-                        coursesection.leftCapacity = subrst.getInt(9);
-                        courseSearchEntry.course = course;
-                        courseSearchEntry.section = coursesection;
-                        courseSearchEntry.sectionClasses = sectionClasses;
-                        List<String> conflictnames =  entry.getValue();
-                        if (!ignoreConflict)
                         {
-                            conflictnames.sort(new Comparator<String>() {
-
-                                @Override
-                                public int compare(String o1, String o2) {
-                                    if (o1.equalsIgnoreCase(o2)) {
-                                        return 0;
-                                    } else {
-                                        return o1.toUpperCase().compareTo(o2.toUpperCase()) > 0 ? 1 : -1;
+                            Object subo = subsubrst.getObject(1);
+                            int tmpdayofweek = -2;
+                            List<Short> tmpweeklist = new ArrayList<Short>();
+                            short tmpclassbegin = -1, tmpclassend = -1;
+                            String tmplocation = null;
+                            if (subo != null)
+                            {
+                                tmpdayofweek = subsubrst.getInt(1);
+                                Array tmparray = subsubrst.getArray(2);
+                                if (tmparray != null)
+                                {
+                                    ResultSet arr = tmparray.getResultSet();
+                                    while (arr.next())
+                                    {
+                                        tmpweeklist.add(arr.getShort(2));
                                     }
                                 }
-
-                            });
+                                tmpclassbegin = subsubrst.getShort(3);
+                                tmpclassend = subsubrst.getShort(4);
+                                tmplocation = subsubrst.getString(5);
+                            }
+                            for (short i : weeklist)
+                            {
+                                for (short j : tmpweeklist)
+                                {
+                                    if (i == j && dayofweek == tmpdayofweek &&
+                                            ((classbegin <= tmpclassbegin && tmpclassbegin <= classend) ||
+                                                    (classbegin <= tmpclassend && tmpclassend <= classend)) )
+                                    {
+                                        if (!ignoreConflict)
+                                        {
+                                            String coursefullname = String.format("%s[%s]", subsubrst.getString(6), subsubrst.getString(7));
+                                            if (!(names.contains(coursefullname)))
+                                            {
+                                                names.add(coursefullname);
+                                            }
+                                        }
+                                        else
+                                        {
+                                            isconflict = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (ignoreConflict && isconflict)
+                                {
+                                    break;
+                                }
+                            }
                         }
-                        courseSearchEntry.conflictCourseNames = conflictnames;
-                        result.add(courseSearchEntry);
+                        if (ignoreConflict && isconflict)
+                        {
+                            break;
+                        }
                     }
+                    if (ignoreConflict && isconflict)
+                    {
+                        judge = false;
+                        break;
+                    }
+                    String location = subrst.getString(6);
+                    String firstname = subrst.getString(7);
+                    String lastname = subrst.getString(8);
+                    String fullname;
+                    if(firstname.matches("^[A-Z\\sa-z]+$") && lastname.matches("^[A-Z\\sa-z]+$"))
+                        fullname = firstname + " " + lastname;
+                    else
+                        fullname = firstname + lastname;
+                    int instructorid = subrst.getInt(9);
+                    Instructor instructor = new Instructor();
+                    instructor.id = instructorid;
+                    instructor.fullName = fullname;
+                    CourseSectionClass coursesectionclass = new CourseSectionClass();
+                    coursesectionclass.id = coursesectionclassid;
+                    coursesectionclass.instructor = instructor;
+                    coursesectionclass.dayOfWeek = dayweek;
+                    coursesectionclass.weekList = new HashSet<>(weeklist);
+                    coursesectionclass.classBegin = classbegin;
+                    coursesectionclass.classEnd = classend;
+                    coursesectionclass.location = location;
+                    sectionClasses.add(coursesectionclass);
+                }
+                if (!judge)
+                {
+                    continue;
+                }
+                subsql = "select course.id, course.name, course.credit, course.classhour, course.grading, "
+                        + "coursesection.id, coursesection.sectionname, coursesection.totalcapacity, coursesection.leftcapacity "
+                        + "from course join coursesection on course.id = coursesection.courseid "
+                        + "where coursesection.id = ?";
+                subpst = (PreparedStatement) connection.prepareStatement(subsql);
+                subpst.setInt(1, sectionid);
+                subrst = subpst.executeQuery();
+                if (subrst.next())
+                {
+                    CourseSearchEntry courseSearchEntry = new CourseSearchEntry();
+                    Course course = new Course();
+                    course.id = subrst.getString(1);
+                    course.name = subrst.getString(2);
+                    course.credit = subrst.getInt(3);
+                    course.classHour = subrst.getInt(4);
+                    course.grading = (subrst.getString(5).equals("HundredMarkScore")? Course.CourseGrading.HUNDRED_MARK_SCORE:Course.CourseGrading.PASS_OR_FAIL);
+                    CourseSection coursesection = new CourseSection();
+                    coursesection.id = sectionid;
+                    coursesection.name = subrst.getString(7);
+                    coursesection.totalCapacity = subrst.getInt(8);
+                    coursesection.leftCapacity = subrst.getInt(9);
+                    courseSearchEntry.course = course;
+                    courseSearchEntry.section = coursesection;
+                    courseSearchEntry.sectionClasses = sectionClasses;
+                    if (!ignoreConflict)
+                    {
+                        names.sort(new Comparator<String>() {
+
+                            @Override
+                            public int compare(String o1, String o2) {
+                                if (o1.equalsIgnoreCase(o2)) {
+                                    return 0;
+                                } else {
+                                    return o1.toUpperCase().compareTo(o2.toUpperCase()) > 0 ? 1 : -1;
+                                }
+                            }
+
+                        });
+                    }
+                    courseSearchEntry.conflictCourseNames = names;
+                    result.add(courseSearchEntry);
                 }
             }
             result.sort(new Comparator<CourseSearchEntry>() {
@@ -739,7 +697,6 @@ public class ReferenceStudentService implements StudentService {
         }
         return null;
     }
-
     @Override
     public EnrollResult enrollCourse(int studentId, int sectionId) {
         try{
